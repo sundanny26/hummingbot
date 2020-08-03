@@ -3,6 +3,7 @@
 import aiohttp
 import asyncio
 import json
+import random
 import logging
 import pandas as pd
 import time
@@ -44,6 +45,10 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
     @classmethod
     async def get_last_traded_prices(cls, trading_pairs: List[str]) -> Dict[str, float]:
         results = dict()
+        # Altmarkets rate limit is 100 https requests per 10 seconds
+        random.seed()
+        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
+        await asyncio.sleep(0.5 + randSleep)
         async with aiohttp.ClientSession() as client:
             resp = await client.get(Constants.EXCHANGE_ROOT_API + Constants.TICKER_URI)
             resp_json = await resp.json()
@@ -58,6 +63,10 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         Returned data frame should have trading pair as index and include usd volume, baseAsset and quoteAsset
         """
+        # Altmarkets rate limit is 100 https requests per 10 seconds
+        random.seed()
+        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
+        await asyncio.sleep(0.5 + randSleep)
         async with aiohttp.ClientSession() as client:
 
             market_response, exchange_response = await safe_gather(
@@ -116,6 +125,10 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
     async def get_snapshot(client: aiohttp.ClientSession, trading_pair: str) -> Dict[str, Any]:
         # when type is set to "step0", the default value of "depth" is 150
         # params: Dict = {"symbol": trading_pair, "type": "step0"}
+        # Altmarkets rate limit is 100 https requests per 10 seconds
+        random.seed()
+        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
+        await asyncio.sleep(0.5 + randSleep)
         async with client.get(Constants.EXCHANGE_ROOT_API + Constants.DEPTH_URI.format(trading_pair=trading_pair)) as response:
             response: aiohttp.ClientResponse = response
             if response.status != 200:
@@ -144,8 +157,6 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     retval[trading_pair] = OrderBookTrackerEntry(trading_pair, snapshot_msg.timestamp, order_book)
                     self.logger().info(f"Initialized order book for {trading_pair}. "
                                        f"{index + 1}/{number_of_pairs} completed.")
-                    # Altmarkets rate limit is 100 https requests per 10 seconds
-                    await asyncio.sleep(0.4)
                 except Exception:
                     self.logger().error(f"Error getting snapshot for {trading_pair}. ", exc_info=True)
                     await asyncio.sleep(5)

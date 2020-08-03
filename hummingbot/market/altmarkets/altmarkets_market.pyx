@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from libc.stdint cimport int64_t
 import logging
+import random
 import pandas as pd
 import re
 import time
@@ -67,7 +68,7 @@ from hummingbot.core.utils.estimate_fee import estimate_fee
 
 hm_logger = None
 s_decimal_0 = Decimal(0)
-TRADING_PAIR_SPLITTER = re.compile(r"^(\w+)(btc|ltc|altm|doge|eth|bnb|xrp|usdt|usdc|usds|tusd|pax|trx|busd|ngn|rub|try|eur|idrt|zar|uah|gbp|bkrw|bidr)$")
+TRADING_PAIR_SPLITTER = re.compile(Constants.TRADING_PAIR_SPLITTER)
 
 
 class AltmarketsAPIError(IOError):
@@ -157,14 +158,14 @@ cdef class AltmarketsMarket(MarketBase):
     def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> Optional[str]:
         if AltmarketsMarket.split_trading_pair(exchange_trading_pair) is None:
             return None
-        # Altmarkets uses lowercase (btcusdt)
+        # Altmarkets uses lowercase e.g. (btcusdt) without a separator
         base_asset, quote_asset = AltmarketsMarket.split_trading_pair(exchange_trading_pair)
         return f"{base_asset.upper()}-{quote_asset.upper()}"
 
     @staticmethod
-    def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
-        # Altmarkets uses lowercase (btcusdt)
-        return hb_trading_pair.replace("-", "").lower()
+    def convert_to_exchange_trading_pair(am_trading_pair: str) -> str:
+        # Altmarkets uses lowercase e.g. (btcusdt) without a separator
+        return am_trading_pair.replace("-", "").lower()
 
     @property
     def name(self) -> str:
@@ -287,6 +288,10 @@ cdef class AltmarketsMarket(MarketBase):
         content_type = "application/json" if method == "post" else "application/x-www-form-urlencoded"
         headers = {"Content-Type": content_type}
         url = Constants.EXCHANGE_ROOT_API + path_url
+        # Altmarkets rate limit is 100 https requests per 10 seconds
+        random.seed()
+        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
+        await asyncio.sleep(0.5 + randSleep)
         client = await self._http_client()
         if is_auth_required:
             headers = self._altmarkets_auth.get_headers()
@@ -312,14 +317,20 @@ cdef class AltmarketsMarket(MarketBase):
             )
 
         async with response_coro as response:
+            # Debug logging output here, can remove all this ...
+            # self.logger().info(f"ALTM Req: {url}. \n Params: {params}\n")
+            # self.logger().info(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
+            # Debug logging ^
             if response.status not in [200, 201]:
-                self.logger().debug(f"ALTM Req: {url}. \n Params: {params}\n")
-                self.logger().debug(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
+                # Debug logging output here, can remove all this ...
+                self.logger().info(f"ALTM Req: {url}. \n Params: {params}\n")
+                self.logger().info(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
                 try:
                     parsed_response = await response.json()
-                    self.logger().debug(f"ALTM Req json: {parsed_response}. ")
+                    self.logger().info(f"ALTM Req json: {parsed_response}. ")
                 except Exception as e:
                     pass
+                # Debug logging ^
                 raise IOError(f"Error fetching data from {url}. HTTP status is {response.status}.")
             try:
                 parsed_response = await response.json()
@@ -356,6 +367,7 @@ cdef class AltmarketsMarket(MarketBase):
                     new_balances[asset_name] = s_decimal_0
 
                 new_balances[asset_name] += balance
+                # Altmarkets does not use balance categories yet.
                 # if balance_entry["type"] == "trade":
                 new_available_balances[asset_name] = balance
 
@@ -455,6 +467,8 @@ cdef class AltmarketsMarket(MarketBase):
             int64_t current_tick = <int64_t>(self._current_timestamp / self.UPDATE_ORDERS_INTERVAL)
 
         if current_tick > last_tick and len(self._in_flight_orders) > 0:
+            # Debug logging of in-flight orders
+            # print(self._in_flight_orders)
             tracked_orders = list(self._in_flight_orders.values())
             for tracked_order in tracked_orders:
                 exchange_order_id = await tracked_order.get_exchange_order_id()
@@ -485,10 +499,10 @@ cdef class AltmarketsMarket(MarketBase):
                     continue
 
                 order_state = order_update["state"]
-                # possible order states are "submitted", "partial-filled", "filled", "canceled"
-                self.logger().debug(f"order state: {order_state}")
-                if order_state not in ["submitted", "done", "canceled"]:
-                    self.logger().debug(f"Unrecognized order update response - {order_update}")
+                # possible order states are "wait", "done", "cancel", "pending"
+                if order_state not in ["done", "cancel", "wait", "pending"]:
+                    self.logger().info(f"Unrecognized order update response - {order_update}")
+                    # print(f"Unrecognized order update response - {order_update}")
 
                 # Calculate the newly executed amount for this update.
                 tracked_order.last_state = order_state
@@ -503,7 +517,7 @@ cdef class AltmarketsMarket(MarketBase):
                     tracked_order.executed_amount_quote = new_executed_amount_quote
                     new_estimated_fee = estimate_fee("altmarkets", tracked_order.order_type is OrderType.LIMIT)
                     tracked_order.fee_paid = new_confirmed_amount * new_estimated_fee.percent
-                    execute_price = Decimal(order_update["price"])
+                    execute_price = Decimal(order_update["price"] if order_update["price"] is not None else order_update["avg_price"])
                     order_filled_event = OrderFilledEvent(
                         self._current_timestamp,
                         tracked_order.client_order_id,
@@ -983,7 +997,7 @@ cdef class AltmarketsMarket(MarketBase):
         open_orders = [o for o in self._in_flight_orders.values() if o.is_open]
         if len(open_orders) == 0:
             return []
-        cancel_order_ids = [o.exchange_order_id for o in open_orders]
+        cancel_order_ids = [o.client_order_id for o in open_orders]
         cancellation_results = []
         try:
             for order_id in cancel_order_ids:

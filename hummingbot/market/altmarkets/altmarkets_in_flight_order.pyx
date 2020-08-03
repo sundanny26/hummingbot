@@ -37,19 +37,19 @@ cdef class AltmarketsInFlightOrder(InFlightOrderBase):
 
     @property
     def is_done(self) -> bool:
-        return self.last_state in {"done", "canceled", "partial-canceled"}
+        return self.last_state in {"done", "cancel", "partial-canceled"}
 
     @property
     def is_cancelled(self) -> bool:
-        return self.last_state in {"partial-canceled", "canceled"}
+        return self.last_state in {"partial-canceled", "cancel"}
 
     @property
     def is_failure(self) -> bool:
-        return self.last_state in {"canceled"}
+        return self.last_state in {"cancel"}
 
     @property
     def is_open(self) -> bool:
-        return self.last_state in {"submitted", "partial-filled"}
+        return self.last_state in {"submitted", "wait", "pending"}
 
     @classmethod
     def from_json(cls, data: Dict[str, Any]) -> InFlightOrderBase:
