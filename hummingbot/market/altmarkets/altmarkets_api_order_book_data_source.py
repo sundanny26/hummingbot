@@ -200,25 +200,25 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     async for raw_msg in self._inner_messages(ws):
                         # Altmarkets's data value for id is a large int too big for ujson to parse
                         msg: Dict[str, Any] = json.loads(raw_msg)
-                        # Debug log output for pub WS messages
-                        # self.logger().debug(f"PubWS msg: {msg}")
                         if "ping" in raw_msg:
                             await ws.send(f'{{"op":"pong","timestamp": {str(msg["ping"])}}}')
                         elif "subscribed" in raw_msg:
                             pass
-                        elif isinstance(msg, list):
-                            trading_pair = msg["ch"].split(".")[1]
-                            for data in msg["tick"]["data"]:
+                        elif ".trades" in raw_msg:
+                            trading_pair = list(msg.keys())[0].split(".")[0]
+                            for trade in msg[f"{trading_pair}.trades"]["trades"]:
                                 trade_message: OrderBookMessage = AltmarketsOrderBook.trade_message_from_exchange(
-                                    data, metadata={"trading_pair": trading_pair}
+                                    trade,
+                                    metadata={"trading_pair": trading_pair}
                                 )
                                 output.put_nowait(trade_message)
                         else:
-                            self.logger().debug(f"Unrecognized message received from Altmarkets websocket: {msg}")
+                            # Debug log output for pub WS messages
+                            self.logger().info(f"Unrecognized message received from Altmarkets websocket: {msg}")
             except asyncio.CancelledError:
                 raise
             except Exception:
-                self.logger().error("Unexpected error with WebSocket connection. Retrying after 30 seconds...",
+                self.logger().error("Trades: Unexpected error with WebSocket connection. Retrying after 30 seconds...",
                                     exc_info=True)
                 await asyncio.sleep(Constants.MESSAGE_TIMEOUT)
 
@@ -238,17 +238,29 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     async for raw_msg in self._inner_messages(ws):
                         # Altmarkets's data value for id is a large int too big for ujson to parse
                         msg: Dict[str, Any] = json.loads(raw_msg)
-                        # Debug log output for pub WS messages
-                        # self.logger().debug(f"PubWS msg: {msg}")
                         if "ping" in raw_msg:
                             await ws.send(f'{{"op":"pong","timestamp": {str(msg["ping"])}}}')
                         elif "subscribed" in raw_msg:
                             pass
-                        elif "ob-snap" in raw_msg:
-                            order_book_message: OrderBookMessage = AltmarketsOrderBook.diff_message_from_exchange(msg)
+                        elif ".ob-inc" in raw_msg:
+                            # msg_key = list(msg.keys())[0]
+                            trading_pair = list(msg.keys())[0].split(".")[0]
+                            order_book_message: OrderBookMessage = AltmarketsOrderBook.diff_message_from_exchange(
+                                msg[f"{trading_pair}.ob-inc"],
+                                metadata={"trading_pair": trading_pair}
+                            )
+                            output.put_nowait(order_book_message)
+                        elif ".ob-snap" in raw_msg:
+                            # msg_key = list(msg.keys())[0]
+                            trading_pair = list(msg.keys())[0].split(".")[0]
+                            order_book_message: OrderBookMessage = AltmarketsOrderBook.snapshot_message_from_exchange(
+                                msg[f"{trading_pair}.ob-snap"],
+                                metadata={"trading_pair": trading_pair}
+                            )
                             output.put_nowait(order_book_message)
                         else:
-                            self.logger().debug(f"Unrecognized message received from Altmarkets websocket: {msg}")
+                            # Debug log output for pub WS messages
+                            self.logger().info(f"OB: Unrecognized message received from Altmarkets websocket: {msg}")
             except asyncio.CancelledError:
                 raise
             except Exception:

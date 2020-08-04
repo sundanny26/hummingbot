@@ -10,16 +10,13 @@ from typing import (
     List,
 )
 import time
-
 import ujson
 import websockets
 from websockets.exceptions import ConnectionClosed
 from hummingbot.logger import HummingbotLogger
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.data_type.order_book_message import OrderBookMessage
 from hummingbot.market.altmarkets.altmarkets_constants import Constants
 from hummingbot.market.altmarkets.altmarkets_auth import AltmarketsAuth
-from hummingbot.market.altmarkets.altmarkets_order_book import AltmarketsOrderBook
 
 
 class AltmarketsAPIUserStreamDataSource(UserStreamTrackerDataSource):
@@ -39,15 +36,6 @@ class AltmarketsAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._listen_for_user_stream_task = None
         self._last_recv_time: float = 0
         super().__init__()
-
-    @property
-    def order_book_class(self):
-        """
-        *required
-        Get relevant order book class to access class specific methods
-        :returns: OrderBook class
-        """
-        return AltmarketsOrderBook
 
     @property
     def last_recv_time(self) -> float:
@@ -80,18 +68,18 @@ class AltmarketsAPIUserStreamDataSource(UserStreamTrackerDataSource):
                         }
                         await ws.send(ujson.dumps(subscribe_request))
                     async for raw_msg in self._inner_messages(ws):
-                        #
-                        # NEEDS WORK
-                        # We're not currently doing anything with the user stream, but it receives messages.
-                        #
-                        diff_msg = ujson.loads(raw_msg)
-                        # Debug log output for user WS messages
-                        # if "'order'" not in raw_msg:
-                        #     self.logger().debug(f"PrvWS msg: {diff_msg}")
-                        if 'something_useful' in raw_msg:
-                            diff_msg: OrderBookMessage = AltmarketsOrderBook.diff_message_from_exchange(diff_msg)
+                        diff_msg: Dict[str, Any] = ujson.loads(raw_msg)
+                        # Debug printing.
+                        # self.logger().info(f"PrvWS msg: {diff_msg}")
+                        if "ping" in raw_msg:
+                            await ws.send(f'{{"op":"pong","timestamp": {str(diff_msg["ping"])}}}')
+                        elif "subscribed" in raw_msg:
+                            pass
+                        elif "order" in raw_msg or "trade" in raw_msg:
                             output.put_nowait(diff_msg)
-
+                        else:
+                            # Debug log output for pub WS messages
+                            self.logger().info(f"Unrecognized message received from Altmarkets websocket: {diff_msg}")
             except asyncio.CancelledError:
                 raise
             except Exception:

@@ -68,8 +68,8 @@ def altmarkets_mid_price(trading_pair: str) -> Optional[Decimal]:
     for tag in list(records.keys()):
         record = records[tag]
         pair = AltmarketsMarket.convert_from_exchange_trading_pair(tag)
-        if trading_pair == pair and record["ticker"]["low"] is not None and record["ticker"]["high"] is not None and record["ticker"]["open"] is not None and record["ticker"]["last"] is not None:
-            result = (Decimal(record["ticker"]["low"]) + Decimal(record["ticker"]["high"]) + Decimal(record["ticker"]["open"]) + Decimal(record["ticker"]["last"])) / Decimal("4")
+        if trading_pair == pair and record["ticker"]["open"] is not None and record["ticker"]["last"] is not None:
+            result = ((Decimal(record["ticker"]["open"]) * Decimal('1')) + (Decimal(record["ticker"]["last"]) * Decimal('3'))) / Decimal("4")
             if result <= 0:
                 result = Decimal('0.00000001')
             break

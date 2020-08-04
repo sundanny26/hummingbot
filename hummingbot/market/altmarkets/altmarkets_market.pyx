@@ -602,122 +602,140 @@ cdef class AltmarketsMarket(MarketBase):
 
         Example content:
         {
-            'average_price': 0.0,
-            'client_order_id': None,
-            'created_at': 1575540850,
-            'crypto_account_id': None,
-            'currency_pair_code': 'ETHUSD',
-            'disc_quantity': 0.0,
-            'filled_quantity': 0.0,
-            'funding_currency': 'USD',
-            'iceberg_total_quantity': 0.0,
-            'id': 1831228517,
-            'leverage_level': 1,
-            'margin_interest': 0.0,
-            'margin_type': None,
-            'margin_used': 0.0,
-            'order_fee': 0.0,
-            'order_type': 'limit',
-            'price': 200.0,
-            'product_code': 'CASH',
-            'product_id': '27',
-            'quantity': 0.01,
-            'side': 'sell',
-            'source_action': 'manual',
-            'source_exchange': 'QUOINE',
-            'status': 'cancelled',
-            'stop_loss': None,
-            'take_profit': None,
-            'target': 'spot',
-            'trade_id': None,
-            'trading_type': 'spot',
-            'unwound_trade_id': None,
-            'unwound_trade_leverage_level': None,
-            'updated_at': 1575540863
+          "order": {
+            "id": 9401,
+            "market": "rogerbtc",
+            "kind": "ask",
+            "side": "sell",
+            "ord_type": "limit",
+            "price": "0.00000099",
+            "avg_price": "0.00000099",
+            "state": "wait",
+            "origin_volume": "7000.0",
+            "remaining_volume": "2810.1",
+            "executed_volume": "4189.9",
+            "at": 1596481983,
+            "created_at": 1596481983,
+            "updated_at": 1596553643,
+            "trades_count": 272
+          }
+        }
+        {
+          "trade": {
+            "id": 27243,
+            "price": "0.00000099",
+            "amount": "35.8",
+            "total": "0.000035442",
+            "market": "rogerbtc",
+            "side": "sell",
+            "taker_type": "buy",
+            "created_at": 1596553643,
+            "order_id": 9401
+          }
         }
         """
         async for event_message in self._iter_user_event_queue():
             try:
-                content = ujson.loads(event_message.content.get('data', {}))
-                event_type = content.get("status")
+                # print(f"Evt Msg: {event_message}")
+                for event_type in list(event_message.keys()):
+                    content = event_message[event_type]
+                    if event_type == 'order':
+                        # Order id retreived from exchange
+                        exchange_order_id = content.get('id')
+                        tracked_order = None
+                        for order in self._in_flight_orders.values():
+                            if order.exchange_order_id == exchange_order_id:
+                                tracked_order = order
+                                break
+                        if tracked_order is None:
+                            continue
 
-                # Order id retreived from exhcnage, that initially sent by client
-                exchange_order_id = content.get('id')
-                tracked_order = None
+                        order_type_description = tracked_order.order_type_description
+                        order_state = content.get("state")
+                        # possible order states are "wait", "done", "cancel", "pending"
+                        if order_state not in ["done", "cancel", "wait", "pending"]:
+                            self.logger().info(f"Unrecognized order update response - {content}")
 
-                for order in self._in_flight_orders.values():
-                    if order.exchange_order_id == exchange_order_id:
-                        tracked_order = order
-                        break
+                        # Calculate the newly executed amount for this update.
+                        tracked_order.last_state = order_state
+                        new_confirmed_amount = Decimal(content.get("executed_volume", '0.0'))
+                        execute_price = Decimal(content.get("average_price", '0.0'))
+                        execute_amount_diff = new_confirmed_amount - tracked_order.executed_amount_base
+                        new_executed_amount_quote = new_confirmed_amount * execute_price
 
-                if tracked_order is None:
-                    continue
+                        if execute_amount_diff > s_decimal_0:
+                            tracked_order.executed_amount_base = new_confirmed_amount
+                            tracked_order.executed_amount_quote = new_executed_amount_quote
+                            new_estimated_fee = estimate_fee("altmarkets", tracked_order.order_type is OrderType.LIMIT)
+                            tracked_order.fee_paid = new_confirmed_amount * new_estimated_fee.percent
+                            execute_price = Decimal(content.get("price", '0.0')
+                                                    if content.get("price", None) is not None
+                                                    else content.get("avg_price", '0.0'))
+                            order_filled_event = OrderFilledEvent(
+                                self._current_timestamp,
+                                tracked_order.client_order_id,
+                                tracked_order.trading_pair,
+                                tracked_order.trade_type,
+                                tracked_order.order_type,
+                                execute_price,
+                                execute_amount_diff,
+                                self.c_get_fee(
+                                    tracked_order.base_asset,
+                                    tracked_order.quote_asset,
+                                    tracked_order.order_type,
+                                    tracked_order.trade_type,
+                                    execute_price,
+                                    execute_amount_diff,
+                                ),
+                                # Unique exchange trade ID not available in client order status
+                                # But can use validate an order using exchange order ID:
+                                # https://huobiapi.github.io/docs/spot/v1/en/#query-order-by-order-id
+                                # Update this comment for AltMarkets ^
+                                exchange_trade_id=exchange_order_id
+                            )
+                            self.logger().info(f"Filled {execute_amount_diff} out of {tracked_order.amount} of the "
+                                               f"order {tracked_order.client_order_id}.")
+                            self.c_trigger_event(self.MARKET_ORDER_FILLED_EVENT_TAG, order_filled_event)
 
-                order_type_description = tracked_order.order_type_description
-                execute_price = Decimal(content.get("average_price", 0.0))
-                execute_amount_diff = s_decimal_0
+                        if tracked_order.is_open:
+                            continue
 
-                if execute_amount_diff > s_decimal_0:
-                    self.logger().info(f"Filled {execute_amount_diff} out of {tracked_order.amount} of the "
-                                       f"{order_type_description} order {tracked_order.client_order_id}")
-                    self.c_trigger_event(self.MARKET_ORDER_FILLED_EVENT_TAG,
-                                         OrderFilledEvent(
-                                             self._current_timestamp,
-                                             tracked_order.client_order_id,
-                                             tracked_order.trading_pair,
-                                             tracked_order.trade_type,
-                                             tracked_order.order_type,
-                                             execute_price,
-                                             execute_amount_diff,
-                                             self.c_get_fee(
-                                                 tracked_order.base_asset,
-                                                 tracked_order.quote_asset,
-                                                 tracked_order.order_type,
-                                                 tracked_order.trade_type,
-                                                 execute_price,
-                                                 execute_amount_diff,
-                                             ),
-                                             exchange_trade_id=tracked_order.exchange_order_id
-                                         ))
-
-                if content.get("status") == "filled":
-                    if tracked_order.trade_type == TradeType.BUY:
-                        self.logger().info(f"The market buy order {tracked_order.client_order_id} has completed "
-                                           f"according to Altmarkets user stream.")
-                        self.c_trigger_event(self.MARKET_BUY_ORDER_COMPLETED_EVENT_TAG,
-                                             BuyOrderCompletedEvent(self._current_timestamp,
-                                                                    tracked_order.client_order_id,
-                                                                    tracked_order.base_asset,
-                                                                    tracked_order.quote_asset,
-                                                                    (tracked_order.fee_asset
-                                                                     or tracked_order.base_asset),
-                                                                    tracked_order.executed_amount_base,
-                                                                    tracked_order.executed_amount_quote,
-                                                                    tracked_order.fee_paid,
-                                                                    tracked_order.order_type))
-                    else:
-                        self.logger().info(f"The market sell order {tracked_order.client_order_id} has completed "
-                                           f"according to Liquid user stream.")
-                        self.c_trigger_event(self.MARKET_SELL_ORDER_COMPLETED_EVENT_TAG,
-                                             SellOrderCompletedEvent(self._current_timestamp,
-                                                                     tracked_order.client_order_id,
-                                                                     tracked_order.base_asset,
-                                                                     tracked_order.quote_asset,
-                                                                     (tracked_order.fee_asset
-                                                                      or tracked_order.quote_asset),
-                                                                     tracked_order.executed_amount_base,
-                                                                     tracked_order.executed_amount_quote,
-                                                                     tracked_order.fee_paid,
-                                                                     tracked_order.order_type))
-                    self.c_stop_tracking_order(tracked_order.client_order_id)
-                else:  # status == "cancelled":
-                    execute_amount_diff = 0
-                    tracked_order.last_state = "cancelled"
-                    self.c_trigger_event(self.MARKET_ORDER_CANCELLED_EVENT_TAG,
-                                         OrderCancelledEvent(self._current_timestamp, tracked_order.client_order_id))
-                    execute_amount_diff = 0
-                    self.c_stop_tracking_order(tracked_order.client_order_id)
-
+                        if tracked_order.is_done:
+                            if not tracked_order.is_cancelled:  # Handles "filled" order
+                                self.c_stop_tracking_order(tracked_order.client_order_id)
+                                if tracked_order.trade_type is TradeType.BUY:
+                                    self.logger().info(f"The market buy order {tracked_order.client_order_id} has completed "
+                                                       f"according to order status API.")
+                                    self.c_trigger_event(self.MARKET_BUY_ORDER_COMPLETED_EVENT_TAG,
+                                                         BuyOrderCompletedEvent(self._current_timestamp,
+                                                                                tracked_order.client_order_id,
+                                                                                tracked_order.base_asset,
+                                                                                tracked_order.quote_asset,
+                                                                                tracked_order.fee_asset or tracked_order.base_asset,
+                                                                                tracked_order.executed_amount_base,
+                                                                                tracked_order.executed_amount_quote,
+                                                                                tracked_order.fee_paid,
+                                                                                tracked_order.order_type))
+                                else:
+                                    self.logger().info(f"The market sell order {tracked_order.client_order_id} has completed "
+                                                       f"according to order status API.")
+                                    self.c_trigger_event(self.MARKET_SELL_ORDER_COMPLETED_EVENT_TAG,
+                                                         SellOrderCompletedEvent(self._current_timestamp,
+                                                                                 tracked_order.client_order_id,
+                                                                                 tracked_order.base_asset,
+                                                                                 tracked_order.quote_asset,
+                                                                                 tracked_order.fee_asset or tracked_order.quote_asset,
+                                                                                 tracked_order.executed_amount_base,
+                                                                                 tracked_order.executed_amount_quote,
+                                                                                 tracked_order.fee_paid,
+                                                                                 tracked_order.order_type))
+                            else:  # Handles "canceled" or "partial-canceled" order
+                                self.c_stop_tracking_order(tracked_order.client_order_id)
+                                self.logger().info(f"The market order {tracked_order.client_order_id} "
+                                                   f"has been cancelled according to order status API.")
+                                self.c_trigger_event(self.MARKET_ORDER_CANCELLED_EVENT_TAG,
+                                                     OrderCancelledEvent(self._current_timestamp,
+                                                                         tracked_order.client_order_id))
             except asyncio.CancelledError:
                 raise
             except Exception:

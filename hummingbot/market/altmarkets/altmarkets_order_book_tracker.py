@@ -115,16 +115,18 @@ class AltmarketsOrderBookTracker(OrderBookTracker):
         while True:
             try:
                 message: OrderBookMessage = await message_queue.get()
+
                 if message.type is OrderBookMessageType.DIFF:
-                    # Altmarkets websocket messages contain the entire order book state so they should be treated as snapshots
-                    order_book.apply_snapshot(message.bids, message.asks, message.update_id)
+                    order_book.apply_diffs(message.bids, message.asks, message.update_id)
+                    # past_diffs_window.append(message)
+                    # while len(past_diffs_window) > self.PAST_DIFF_WINDOW_SIZE:
+                    #     past_diffs_window.popleft()
                     diff_messages_accepted += 1
 
                     # Output some statistics periodically.
                     now: float = time.time()
                     if int(now / 60.0) > int(last_message_timestamp / 60.0):
-                        self.logger().debug("Processed %d order book diffs for %s.",
-                                            diff_messages_accepted, trading_pair)
+                        self.logger().info(f"Processed {diff_messages_accepted} order book diffs for {trading_pair}.")
                         diff_messages_accepted = 0
                     last_message_timestamp = now
                 elif message.type is OrderBookMessageType.SNAPSHOT:
