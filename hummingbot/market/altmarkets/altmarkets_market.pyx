@@ -130,7 +130,6 @@ cdef class AltmarketsMarket(MarketBase):
         self._last_poll_timestamp = 0
         self._last_timestamp = 0
         self._order_book_tracker = AltmarketsOrderBookTracker(
-            data_source_type=order_book_tracker_data_source_type,
             trading_pairs=trading_pairs
         )
         self._user_stream_tracker = AltmarketsUserStreamTracker(altmarkets_auth=self._altmarkets_auth, trading_pairs=trading_pairs)
@@ -728,10 +727,7 @@ cdef class AltmarketsMarket(MarketBase):
                           price: Decimal) -> str:
         path_url = Constants.ORDER_CREATION_URI
         side = "buy" if is_buy else "sell"
-        if order_type is OrderType.LIMIT:
-            order_type_str = "limit"
-        elif order_type is OrderType.MARKET:
-            order_type_str = "market"
+        order_type_str = "limit" if order_type is OrderType.LIMIT else "market"
 
         params = {
             # "account-id": self._account_id,
@@ -798,12 +794,7 @@ cdef class AltmarketsMarket(MarketBase):
             raise
         except Exception:
             self.c_stop_tracking_order(order_id)
-            if order_type == OrderType.MARKET:
-                order_type_str = "MARKET"
-            elif order_type == OrderType.LIMIT:
-                order_type_str = "LIMIT"
-            elif order_type == OrderType.LIMIT_MAKER:
-                order_type_str = "LIMIT_LIMIT"
+            order_type_str = order_type.name.lower()
             self.logger().network(
                 f"Error submitting buy {order_type_str} order to Altmarkets for "
                 f"{decimal_amount} {trading_pair} "
@@ -873,12 +864,7 @@ cdef class AltmarketsMarket(MarketBase):
             raise
         except Exception:
             self.c_stop_tracking_order(order_id)
-            if order_type == OrderType.MARKET:
-                order_type_str = "MARKET"
-            elif order_type == OrderType.LIMIT:
-                order_type_str = "LIMIT"
-            elif order_type == OrderType.LIMIT_MAKER:
-                order_type_str = "LIMIT_LIMIT"
+            order_type_str = order_type.name.lower()
             self.logger().network(
                 f"Error submitting sell {order_type_str} order to Altmarkets for "
                 f"{decimal_amount} {trading_pair} "
