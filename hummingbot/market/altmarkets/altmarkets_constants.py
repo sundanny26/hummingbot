@@ -34,7 +34,7 @@ class Constants:
     PING_TIMEOUT = 10.0
 
     API_CALL_TIMEOUT = 10.0
-    UPDATE_ORDERS_INTERVAL = 10.0
+    UPDATE_ORDERS_INTERVAL = 20.0
 
     # Trading pair splitter regex
     TRADING_PAIR_SPLITTER = r"^(\w+)(btc|ltc|altm|doge|eth|bnb|xrp|usdt|usdc|usds|tusd|pax|trx|busd|ngn|rub|try|eur|idrt|zar|uah|gbp|bkrw|bidr)$"
