@@ -358,17 +358,12 @@ cdef class AltmarketsMarket(MarketBase):
             for balance_entry in balances:
                 asset_name = balance_entry["currency"]
                 balance = Decimal(balance_entry["balance"])
+                locked_balance = Decimal(balance_entry["locked"])
                 if balance == s_decimal_0:
                     continue
-                if asset_name not in new_available_balances:
-                    new_available_balances[asset_name] = s_decimal_0
-                if asset_name not in new_balances:
-                    new_balances[asset_name] = s_decimal_0
-
-                new_balances[asset_name] += balance
-                # Altmarkets does not use balance categories yet.
-                # if balance_entry["type"] == "trade":
-                new_available_balances[asset_name] = balance
+                new_balances[asset_name] = balance
+                # Altmarkets does not use balance categories yet. Just Total Balance & Locked
+                new_available_balances[asset_name] = balance - locked_balance
 
             self._account_available_balances.clear()
             self._account_available_balances = new_available_balances
@@ -664,6 +659,25 @@ cdef class AltmarketsMarket(MarketBase):
                             continue
                         # order_type_description = tracked_order.order_type_description
                         await self._update_order_message(exchange_order_id, content, tracked_order)
+                    # When AltMarkets updates to Peatio 2.6 this should start working.
+                    elif event_type == 'balance':
+                        if len(content) > 0:
+                            new_balances = {}
+                            new_available_balances = {}
+                            for balance_entry in content:
+                                asset_name = balance_entry["currency"]
+                                balance = Decimal(balance_entry["balance"])
+                                locked_balance = Decimal(balance_entry["locked"])
+                                if balance == s_decimal_0:
+                                    continue
+                                new_balances[asset_name] = balance
+                                new_available_balances[asset_name] = balance - locked_balance
+
+                            self._account_available_balances.clear()
+                            self._account_available_balances = new_available_balances
+                            self._account_balances.clear()
+                            self._account_balances = new_balances
+                            self.apply_balance_restriction()
             except asyncio.CancelledError:
                 raise
             except Exception:
