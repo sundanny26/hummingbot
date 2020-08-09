@@ -370,8 +370,6 @@ cdef class AltmarketsMarket(MarketBase):
             self._account_balances.clear()
             self._account_balances = new_balances
 
-        self.apply_balance_restriction()
-
     cdef object c_get_fee(self,
                           str base_currency,
                           str quote_currency,
@@ -677,7 +675,6 @@ cdef class AltmarketsMarket(MarketBase):
                             self._account_available_balances = new_available_balances
                             self._account_balances.clear()
                             self._account_balances = new_balances
-                            self.apply_balance_restriction()
             except asyncio.CancelledError:
                 raise
             except Exception:
