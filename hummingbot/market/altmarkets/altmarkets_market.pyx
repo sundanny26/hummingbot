@@ -359,11 +359,11 @@ cdef class AltmarketsMarket(MarketBase):
                 asset_name = balance_entry["currency"]
                 balance = Decimal(balance_entry["balance"])
                 locked_balance = Decimal(balance_entry["locked"])
-                if balance == s_decimal_0:
-                    continue
-                new_balances[asset_name] = balance
+                # if balance == s_decimal_0:
+                #     continue
+                new_balances[asset_name] = balance + locked_balance
                 # Altmarkets does not use balance categories yet. Just Total Balance & Locked
-                new_available_balances[asset_name] = balance - locked_balance
+                new_available_balances[asset_name] = balance
 
             self._account_available_balances.clear()
             self._account_available_balances = new_available_balances
@@ -668,10 +668,10 @@ cdef class AltmarketsMarket(MarketBase):
                                 asset_name = balance_entry["currency"]
                                 balance = Decimal(balance_entry["balance"])
                                 locked_balance = Decimal(balance_entry["locked"])
-                                if balance == s_decimal_0:
-                                    continue
-                                new_balances[asset_name] = balance
-                                new_available_balances[asset_name] = balance - locked_balance
+                                # if balance == s_decimal_0:
+                                #     continue
+                                new_balances[asset_name] = balance + locked_balance
+                                new_available_balances[asset_name] = balance
 
                             self._account_available_balances.clear()
                             self._account_available_balances = new_available_balances
