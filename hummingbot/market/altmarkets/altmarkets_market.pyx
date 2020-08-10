@@ -283,14 +283,15 @@ cdef class AltmarketsMarket(MarketBase):
                            path_url,
                            params: Optional[Dict[str, Any]] = None,
                            data=None,
-                           is_auth_required: bool = False) -> Dict[str, Any]:
+                           is_auth_required: bool = False,
+                           try_count: int = 0) -> Dict[str, Any]:
         content_type = "application/json" if method == "post" else "application/x-www-form-urlencoded"
         headers = {"Content-Type": content_type}
         url = Constants.EXCHANGE_ROOT_API + path_url
         # Altmarkets rate limit is 100 https requests per 10 seconds
         random.seed()
-        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
-        await asyncio.sleep(0.5 + randSleep)
+        randSleep = (random.randint(1, 9) + random.randint(1, 5)) / 10
+        await asyncio.sleep(0.1 + randSleep)
         client = await self._http_client()
         if is_auth_required:
             headers = self._altmarkets_auth.get_headers()
@@ -321,6 +322,16 @@ cdef class AltmarketsMarket(MarketBase):
             # self.logger().info(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
             # Debug logging ^
             if response.status not in [200, 201]:
+                if try_count < 3:
+                    await asyncio.sleep(5 + (randSleep * (2 + try_count)))
+                    self.logger().info(f"Error fetching data from {url}. HTTP status is {response.status}. Retrying.")
+                    data = await self._api_request(method = method,
+                                                   path_url = path_url,
+                                                   params = params,
+                                                   data = None,
+                                                   is_auth_required = is_auth_required,
+                                                   try_count = try_count + 1)
+                    return data
                 # Debug logging output here, can remove all this ...
                 self.logger().info(f"ALTM Req: {url}. \n Params: {params}\n")
                 self.logger().info(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
@@ -777,9 +788,11 @@ cdef class AltmarketsMarket(MarketBase):
 
         decimal_amount = self.quantize_order_amount(trading_pair, amount)
         decimal_price = self.quantize_order_price(trading_pair, price)
+        if order_type == OrderType.LIMIT and decimal_price <= s_decimal_0:
+            raise ValueError(f"Price of {decimal_price:.8f} is too low.")
         if decimal_amount < trading_rule.min_order_size:
-            raise ValueError(f"Buy order amount {decimal_amount} is lower than the minimum order size "
-                             f"{trading_rule.min_order_size}.")
+            raise ValueError(f"Buy order amount {decimal_amount:.8f} is lower than the minimum order size "
+                             f"{trading_rule.min_order_size:.8f}.")
         try:
             exchange_order_id = await self.place_order(order_id, trading_pair, decimal_amount, True, order_type, decimal_price)
             self.c_start_tracking_order(
@@ -847,9 +860,11 @@ cdef class AltmarketsMarket(MarketBase):
 
         decimal_amount = self.quantize_order_amount(trading_pair, amount)
         decimal_price = self.quantize_order_price(trading_pair, price)
+        if order_type == OrderType.LIMIT and decimal_price <= s_decimal_0:
+            raise ValueError(f"Price of {decimal_price:.8f} is too low.")
         if decimal_amount < trading_rule.min_order_size:
-            raise ValueError(f"Sell order amount {decimal_amount} is lower than the minimum order size "
-                             f"{trading_rule.min_order_size}.")
+            raise ValueError(f"Sell order amount {decimal_amount:.8f} is lower than the minimum order size "
+                             f"{trading_rule.min_order_size:.8f}.")
 
         try:
             exchange_order_id = await self.place_order(order_id, trading_pair, decimal_amount, False, order_type, decimal_price)
