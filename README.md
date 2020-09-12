@@ -25,6 +25,7 @@ OKEx is reportedly being investigated by Chinese authorities and has stopped wit
 
 | logo | id | name | ver | doc | status |
 |:---:|:---:|:---:|:---:|:---:|:---:|
+| <img src="documentation/docs/assets/img/altmarkets_logo1.png" alt="AltMarkets.io" width="90" /> | altmarkets | [AltMarkets.io](https://altmarkets.io/) | 2 | [API](https://altmarkets.io/) | ![GREEN](https://via.placeholder.com/15/008000/?text=+) | Connector is working properly
 | <img src="https://i.ibb.co/m0YDQLd/Screen-Shot-2019-03-14-at-10-53-42-AM.png" alt="Binance" width="90" /> | binance | [Binance](https://www.binance.com/) | 3 | [API](https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md) | ![GREEN](https://via.placeholder.com/15/008000/?text=+) | Connector is working properly
 | <img src="https://i.ibb.co/h9JdGDW/cbp.jpg" alt="Coinbase Pro" width="90" /> | coinbase_pro | [Coinbase Pro](https://pro.coinbase.com/) | * | [API](https://docs.pro.coinbase.com/) | ![GREEN](https://via.placeholder.com/15/008000/?text=+) |
 |<img src="assets/huobi_logo.png" alt="Huobi Global" width="90" />| huobi | [Huobi Global](https://www.hbg.com) | 1 | [API](https://huobiapi.github.io/docs/spot/v1/en/) | ![GREEN](https://via.placeholder.com/15/008000/?text=+) |
