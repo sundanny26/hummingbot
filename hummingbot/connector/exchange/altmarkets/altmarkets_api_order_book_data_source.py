@@ -14,6 +14,9 @@ from typing import (
     List,
     Optional,
 )
+from decimal import Decimal
+import requests
+import cachetools.func
 import websockets
 from websockets.exceptions import ConnectionClosed
 
@@ -23,7 +26,10 @@ from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTr
 from hummingbot.logger import HummingbotLogger
 from hummingbot.connector.exchange.altmarkets.altmarkets_order_book import AltmarketsOrderBook
 from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
-from hummingbot.connector.exchange.altmarkets.altmarkets_utils import convert_to_exchange_trading_pair
+from hummingbot.connector.exchange.altmarkets.altmarkets_utils import (
+    convert_from_exchange_trading_pair,
+    convert_to_exchange_trading_pair
+)
 
 
 class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
@@ -53,6 +59,40 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 resp_record = [resp_json[symbol] for symbol in list(resp_json.keys()) if symbol == trading_pair][0]['ticker']
                 results[trading_pair] = float(resp_record["last"])
         return results
+
+    @staticmethod
+    @cachetools.func.ttl_cache(ttl=10)
+    def get_mid_price(trading_pair: str) -> Optional[Decimal]:
+        resp = requests.get(url=Constants.EXCHANGE_ROOT_API + Constants.TICKER_URI)
+        records = resp.json()
+        result = None
+        for tag in list(records.keys()):
+            record = records[tag]
+            pair = convert_from_exchange_trading_pair(tag)
+            if trading_pair == pair and record["ticker"]["open"] is not None and record["ticker"]["last"] is not None:
+                result = ((Decimal(record["ticker"]["open"]) * Decimal('1')) + (Decimal(record["ticker"]["last"]) * Decimal('3'))) / Decimal("4")
+                if result <= 0:
+                    result = Decimal('0.00000001')
+                break
+        return result
+
+    @staticmethod
+    async def fetch_trading_pairs() -> List[str]:
+        try:
+            async with aiohttp.ClientSession() as client:
+                async with client.get(Constants.EXCHANGE_ROOT_API + Constants.SYMBOLS_URI, timeout=Constants.API_CALL_TIMEOUT) as response:
+                    if response.status == 200:
+                        products: List[Dict[str, Any]] = await response.json()
+                        return [
+                            product["name"].replace("/", "-") for product in products
+                            if product['state'] == "enabled"
+                        ]
+
+        except Exception:
+            # Do nothing if the request fails -- there will be no autocomplete for huobi trading pairs
+            pass
+
+        return []
 
     @staticmethod
     async def get_snapshot(client: aiohttp.ClientSession, trading_pair: str) -> Dict[str, Any]:

@@ -3,7 +3,17 @@ from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Consta
 from typing import (
     Optional,
     Tuple)
+from hummingbot.client.config.config_var import ConfigVar
+from hummingbot.client.config.config_methods import using_exchange
+
+
 TRADING_PAIR_SPLITTER = re.compile(Constants.TRADING_PAIR_SPLITTER)
+
+CENTRALIZED = True
+
+EXAMPLE_PAIR = "ALTM-BTC"
+
+DEFAULT_FEES = [0.1, 0.2]
 
 
 def split_trading_pair(trading_pair: str) -> Optional[Tuple[str, str]]:
@@ -26,3 +36,19 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> Optional[s
 def convert_to_exchange_trading_pair(am_trading_pair: str) -> str:
     # Altmarkets uses lowercase (btcusdt)
     return am_trading_pair.replace("-", "").lower()
+
+
+KEYS = {
+    "altmarkets_api_key":
+        ConfigVar(key="altmarkets_api_key",
+                  prompt="Enter your Altmarkets API key >>> ",
+                  required_if=using_exchange("altmarkets"),
+                  is_secure=True,
+                  is_connect_key=True),
+    "altmarkets_secret_key":
+        ConfigVar(key="altmarkets_secret_key",
+                  prompt="Enter your Altmarkets secret key >>> ",
+                  required_if=using_exchange("altmarkets"),
+                  is_secure=True,
+                  is_connect_key=True),
+}

@@ -77,11 +77,11 @@ class AltmarketsAPIError(IOError):
         self.error_payload = error_payload
 
 
-cdef class AltmarketsMarketTransactionTracker(TransactionTracker):
+cdef class AltmarketsExchangeTransactionTracker(TransactionTracker):
     cdef:
-        AltmarketsMarket _owner
+        AltmarketsExchange _owner
 
-    def __init__(self, owner: AltmarketsMarket):
+    def __init__(self, owner: AltmarketsExchange):
         super().__init__()
         self._owner = owner
 
@@ -90,7 +90,7 @@ cdef class AltmarketsMarketTransactionTracker(TransactionTracker):
         self._owner.c_did_timeout_tx(tx_id)
 
 
-cdef class AltmarketsMarket(ExchangeBase):
+cdef class AltmarketsExchange(ExchangeBase):
     MARKET_BUY_ORDER_COMPLETED_EVENT_TAG = MarketEvent.BuyOrderCompleted.value
     MARKET_SELL_ORDER_COMPLETED_EVENT_TAG = MarketEvent.SellOrderCompleted.value
     MARKET_ORDER_CANCELLED_EVENT_TAG = MarketEvent.OrderCancelled.value
@@ -137,7 +137,7 @@ cdef class AltmarketsMarket(ExchangeBase):
         self._trading_required = trading_required
         self._trading_rules = {}
         self._trading_rules_polling_task = None
-        self._tx_tracker = AltmarketsMarketTransactionTracker(self)
+        self._tx_tracker = AltmarketsExchangeTransactionTracker(self)
         self._throttler = Throttler(rate_limit = (5.0, 1.0))
 
     @property
@@ -332,7 +332,6 @@ cdef class AltmarketsMarket(ExchangeBase):
 
     async def _update_balances(self):
         cdef:
-            str path_url = Constants.ACCOUNTS_BALANCE_URI
             list data
             list balances
             dict new_available_balances = {}
@@ -340,7 +339,7 @@ cdef class AltmarketsMarket(ExchangeBase):
             str asset_name
             object balance
 
-        data = await self._api_request("get", path_url=path_url, is_auth_required=True)
+        data = await self._api_request("get", path_url=Constants.ACCOUNTS_BALANCE_URI, is_auth_required=True)
         balances = data
         if len(balances) > 0:
             for balance_entry in balances:
@@ -706,7 +705,6 @@ cdef class AltmarketsMarket(ExchangeBase):
     @property
     def status_dict(self) -> Dict[str, bool]:
         return {
-            # "account_id_initialized": self._account_id != "" if self._trading_required else True,
             "order_books_initialized": self._order_book_tracker.ready,
             "account_balance": len(self._account_balances) > 0 if self._trading_required else True,
             "trading_rule_initialized": len(self._trading_rules) > 0
