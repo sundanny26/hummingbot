@@ -36,7 +36,6 @@ class AltmarketsAuth:
         return True
 
     def get_headers(self) -> (Dict[str, Any]):
-        # if self.signature is None or self.nonce is None or self.signature_timestamp < int(time.time()):
         self.generate_signature()
         return {
             "X-Auth-Apikey": self.api_key,
