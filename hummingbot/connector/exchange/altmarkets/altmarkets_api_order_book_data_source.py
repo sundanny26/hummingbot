@@ -56,7 +56,7 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
             resp = await client.get(Constants.EXCHANGE_ROOT_API + Constants.TICKER_URI)
             resp_json = await resp.json()
             for trading_pair in trading_pairs:
-                resp_record = [resp_json[symbol] for symbol in list(resp_json.keys()) if symbol == trading_pair][0]['ticker']
+                resp_record = [resp_json[symbol] for symbol in list(resp_json.keys()) if symbol == convert_to_exchange_trading_pair(trading_pair)][0]['ticker']
                 results[trading_pair] = float(resp_record["last"])
         return results
 
