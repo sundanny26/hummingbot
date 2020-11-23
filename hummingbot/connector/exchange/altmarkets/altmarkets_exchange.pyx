@@ -509,7 +509,8 @@ cdef class AltmarketsExchange(ExchangeBase):
                                                                 tracked_order.executed_amount_base,
                                                                 tracked_order.executed_amount_quote,
                                                                 tracked_order.fee_paid,
-                                                                tracked_order.order_type))
+                                                                tracked_order.order_type,
+                                                                exchange_order_id=tracked_order.exchange_order_id))
                     return True
                 else:
                     self.logger().info(f"The market sell order {tracked_order.client_order_id} has completed "
@@ -523,7 +524,8 @@ cdef class AltmarketsExchange(ExchangeBase):
                                                                  tracked_order.executed_amount_base,
                                                                  tracked_order.executed_amount_quote,
                                                                  tracked_order.fee_paid,
-                                                                 tracked_order.order_type))
+                                                                 tracked_order.order_type,
+                                                                 exchange_order_id=tracked_order.exchange_order_id))
                     return True
             else:  # Handles "canceled" or "partial-canceled" order
                 self.c_stop_tracking_order(tracked_order.client_order_id)
@@ -531,7 +533,8 @@ cdef class AltmarketsExchange(ExchangeBase):
                                    f"has been cancelled according to order status API.")
                 self.c_trigger_event(self.MARKET_ORDER_CANCELLED_EVENT_TAG,
                                      OrderCancelledEvent(self._current_timestamp,
-                                                         tracked_order.client_order_id))
+                                                         tracked_order.client_order_id,
+                                                         exchange_order_id=tracked_order.exchange_order_id))
                 return True
         else:
             return True
