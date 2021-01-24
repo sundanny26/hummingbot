@@ -1,6 +1,7 @@
 # distutils: language=c++
 import logging
 from decimal import Decimal
+import numpy as np
 import pandas as pd
 from typing import (
     List,
