@@ -626,6 +626,18 @@ cdef class ArbitrageStrategy(StrategyBase):
 
         return best_profitable_order_amount, best_profitable_order_profitability, bid_price, ask_price
 
+    def get_price_type(self, price_type_str: str) -> PriceType:
+        if price_type_str == "mid_price":
+            return PriceType.MidPrice
+        elif price_type_str == "best_bid":
+            return PriceType.BestBid
+        elif price_type_str == "best_ask":
+            return PriceType.BestAsk
+        elif price_type_str == "last_price":
+            return PriceType.LastTrade
+        else:
+            raise ValueError(f"Unrecognized price type string {price_type_str}.")
+
     # The following exposed Python functions are meant for unit tests
     # ---------------------------------------------------------------
     def find_best_profitable_amount(self, buy_market: MarketTradingPairTuple, sell_market: MarketTradingPairTuple):
@@ -724,15 +736,3 @@ cdef list c_find_profitable_arbitrage_orders(object min_profitability,
         pass
 
     return profitable_orders
-
-    def get_price_type(self, price_type_str: str) -> PriceType:
-        if price_type_str == "mid_price":
-            return PriceType.MidPrice
-        elif price_type_str == "best_bid":
-            return PriceType.BestBid
-        elif price_type_str == "best_ask":
-            return PriceType.BestAsk
-        elif price_type_str == "last_price":
-            return PriceType.LastTrade
-        else:
-            raise ValueError(f"Unrecognized price type string {price_type_str}.")
