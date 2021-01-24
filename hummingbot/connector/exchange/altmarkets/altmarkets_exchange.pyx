@@ -955,7 +955,8 @@ cdef class AltmarketsExchange(ExchangeBase):
             dict order_books = self._order_book_tracker.order_books
 
         if trading_pair not in order_books:
-            raise ValueError(f"No order book exists for '{trading_pair}'.")
+            err = f"No order book exists for '{trading_pair}' - {order_books}."
+            raise ValueError(err)
         return order_books.get(trading_pair)
 
     cdef c_did_timeout_tx(self, str tracking_id):
