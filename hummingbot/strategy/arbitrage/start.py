@@ -7,7 +7,7 @@ from hummingbot.connector.exchange_base import ExchangeBase
 from hummingbot.connector.exchange.paper_trade import create_paper_trade_market
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.arbitrage.arbitrage_market_pair import ArbitrageMarketPair
-from hummingbot.strategy.arbitrage.arbitrage import (
+from hummingbot.strategy.arbitrage import (
     ArbitrageStrategy,
     OrderBookAssetPriceDelegate,
     APIAssetPriceDelegate
