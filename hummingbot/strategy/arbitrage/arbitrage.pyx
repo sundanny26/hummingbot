@@ -184,32 +184,32 @@ cdef class ArbitrageStrategy(StrategyBase):
 
     def market_status_data_frame(self, market_trading_pair_tuples: List[MarketTradingPairTuple]) -> pd.DataFrame:
         markets_data = []
-        markets_columns = ["Exchange", "Market", "Best Bid", "Best Ask", f"Ref Price ({self._price_type.name})"]
-        market_books = [(self._market_info.market, self._market_info.trading_pair)]
-        if type(self._base_asset_price_delegate) is OrderBookAssetPriceDelegate:
-            market_books.append((self._base_asset_price_delegate.market, self._base_asset_price_delegate.trading_pair))
-        if type(self._quote_asset_price_delegate) is OrderBookAssetPriceDelegate:
-            market_books.append((self._quote_asset_price_delegate.market, self._quote_asset_price_delegate.trading_pair))
-        for market, trading_pair in market_books:
+        markets_columns = ["Exchange", "Market", "Best Bid Price", "Best Ask Price", "Mid Price"]
+        if self._base_asset_price_delegate is not None:
+            base_tuple = MarketTradingPairTuple(self._base_asset_price_delegate.market,
+                                                self._base_asset_price_delegate.trading_pair,
+                                                None,
+                                                None)
+            market_trading_pair_tuples.append(base_tuple)
+        if self._quote_asset_price_delegate is not None:
+            quote_tuple = MarketTradingPairTuple(self._quote_asset_price_delegate.market,
+                                                 self._quote_asset_price_delegate.trading_pair,
+                                                 None,
+                                                 None)
+            market_trading_pair_tuples.append(quote_tuple)
+        for market_trading_pair_tuple in market_trading_pair_tuples:
+            market, trading_pair, base_asset, quote_asset = market_trading_pair_tuple
             bid_price = market.get_price(trading_pair, False)
             ask_price = market.get_price(trading_pair, True)
-            ref_price = float("nan")
-            if market == self._market_info.market and self._base_asset_price_delegate is None:
-                ref_price = self.get_base_price()
-            elif market == self._base_asset_price_delegate.market:
-                ref_price = self._base_asset_price_delegate.get_price_by_type(self._price_type)
-            if market == self._market_info.market and self._quote_asset_price_delegate is None:
-                ref_price = self.get_quote_price()
-            elif market == self._quote_asset_price_delegate.market:
-                ref_price = self._quote_asset_price_delegate.get_price_by_type(self._price_type)
+            mid_price = (bid_price + ask_price)/2
             markets_data.append([
                 market.display_name,
                 trading_pair,
                 float(bid_price),
                 float(ask_price),
-                float(ref_price)
+                float(mid_price)
             ])
-        return pd.DataFrame(data=markets_data, columns=markets_columns).replace(np.nan, '', regex=True)
+        return pd.DataFrame(data=markets_data, columns=markets_columns)
 
     def format_status(self) -> str:
         cdef:
