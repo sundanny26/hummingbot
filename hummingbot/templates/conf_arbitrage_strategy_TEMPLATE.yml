@@ -28,5 +28,35 @@ secondary_to_primary_base_conversion_rate: null
 # the conversion rate is 0.8 (1 / 1.25)
 secondary_to_primary_quote_conversion_rate: null
 
+# Base Price Source
+base_price_source: null
+
+# Quote Price Source
+quote_price_source: null
+
+# Base Price Source Exchange
+base_price_source_exchange: null
+
+# Base Price Source Market
+base_price_source_market: null
+
+# Base Price Source Custom API
+base_price_source_custom_api: null
+
+# Base Price Source Type
+base_price_source_type: null
+
+# Quote Price Source Exchange
+quote_price_source_exchange: null
+
+# Quote Price Source Market
+quote_price_source_market: null
+
+# Quote Price Source Custom API
+quote_price_source_custom_api: null
+
+# Quote Price Source Type
+quote_price_source_type: null
+
 # For more detailed information, see:
 # https://docs.hummingbot.io/strategies/arbitrage/#configuration-parameters
