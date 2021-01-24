@@ -200,7 +200,8 @@ cdef class AltmarketsExchange(ExchangeBase):
         self._async_scheduler.stop()
 
     async def start_network(self):
-        self._stop_network()
+        if self._trading_rules_polling_task is not None:
+            self._stop_network()
         self._order_book_tracker.start()
         self._trading_rules_polling_task = safe_ensure_future(self._trading_rules_polling_loop())
         if self._trading_required:
