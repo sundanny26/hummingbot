@@ -25,6 +25,10 @@ cdef class ArbitrageStrategy(StrategyBase):
         bint _cool_off_logged
         object _secondary_to_primary_base_conversion_rate
         object _secondary_to_primary_quote_conversion_rate
+        object _base_asset_price_delegate
+        object _quote_asset_price_delegate
+        object _base_price_source_type
+        object _quote_price_source_type
         bint _hb_app_notification
         tuple _current_profitability
 
