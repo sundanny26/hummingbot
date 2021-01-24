@@ -41,7 +41,7 @@ def secondary_market_on_validated(value: str):
 
 
 def validate_price_source(value: str) -> Optional[str]:
-    if value not in {"current_market", "external_market", "custom_api"}:
+    if value not in {"config_rate", "external_market", "custom_api"}:
         return "Invalid price source type."
 
 
@@ -133,11 +133,26 @@ arbitrage_config_map = {
         default=Decimal("0.3"),
         validator=lambda v: validate_decimal(v, Decimal(-100), Decimal("100"), inclusive=True),
         type_str="decimal"),
+    "base_price_source":
+        ConfigVar(key="base_price_source",
+                  prompt="Which price source to use? (config_rate/external_market/custom_api) >>> ",
+                  type_str="str",
+                  default="config_rate",
+                  validator=validate_price_source,
+                  on_validated=on_validate_base_price_source),
+    "quote_price_source":
+        ConfigVar(key="quote_price_source",
+                  prompt="Which price source to use? (config_rate/external_market/custom_api) >>> ",
+                  type_str="str",
+                  default="config_rate",
+                  validator=validate_price_source,
+                  on_validated=on_validate_quote_price_source),
     "secondary_to_primary_base_conversion_rate": ConfigVar(
         key="secondary_to_primary_base_conversion_rate",
         prompt="Enter conversion rate for secondary base asset value to primary base asset value, e.g. "
                "if primary base asset is USD, secondary is DAI and 1 USD is worth 1.25 DAI, "
                "the conversion rate is 0.8 (1 / 1.25) >>> ",
+        required_if=lambda: arbitrage_config_map.get("base_price_source").value == "config_rate",
         default=Decimal("1"),
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal("100"), inclusive=False),
         type_str="decimal"),
@@ -146,16 +161,10 @@ arbitrage_config_map = {
         prompt="Enter conversion rate for secondary quote asset value to primary quote asset value, e.g. "
                "if primary quote asset is USD, secondary is DAI and 1 USD is worth 1.25 DAI, "
                "the conversion rate is 0.8 (1 / 1.25) >>> ",
+        required_if=lambda: arbitrage_config_map.get("quote_price_source").value == "config_rate",
         default=Decimal("1"),
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal("100"), inclusive=False),
         type_str="decimal"),
-    "base_price_source":
-        ConfigVar(key="base_price_source",
-                  prompt="Which price source to use? (current_market/external_market/custom_api) >>> ",
-                  type_str="str",
-                  default="current_market",
-                  validator=validate_price_source,
-                  on_validated=on_validate_base_price_source),
     "base_price_source_exchange":
         ConfigVar(key="base_price_source_exchange",
                   prompt="Enter external price source exchange name >>> ",
@@ -185,13 +194,6 @@ arbitrage_config_map = {
                                                     "best_bid",
                                                     "best_ask"} else
                   "Invalid price type."),
-    "quote_price_source":
-        ConfigVar(key="quote_price_source",
-                  prompt="Which price source to use? (current_market/external_market/custom_api) >>> ",
-                  type_str="str",
-                  default="current_market",
-                  validator=validate_price_source,
-                  on_validated=on_validate_quote_price_source),
     "quote_price_source_exchange":
         ConfigVar(key="quote_price_source_exchange",
                   prompt="Enter external price source exchange name >>> ",
