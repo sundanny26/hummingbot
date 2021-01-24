@@ -61,7 +61,7 @@ def on_validate_base_price_source(value: str):
 
 def base_price_source_market_prompt() -> str:
     external_market = arbitrage_config_map.get("base_price_source_exchange").value
-    return f'Enter the token trading pair on {external_market} >>> '
+    return f'Enter the base token trading pair on {external_market} >>> '
 
 
 def on_validated_base_price_source_exchange(value: str):
@@ -86,7 +86,7 @@ def on_validate_quote_price_source(value: str):
 
 def quote_price_source_market_prompt() -> str:
     external_market = arbitrage_config_map.get("quote_price_source_exchange").value
-    return f'Enter the token trading pair on {external_market} >>> '
+    return f'Enter the quote token trading pair on {external_market} >>> '
 
 
 def on_validated_quote_price_source_exchange(value: str):
@@ -135,14 +135,16 @@ arbitrage_config_map = {
         type_str="decimal"),
     "base_price_source":
         ConfigVar(key="base_price_source",
-                  prompt="Which price source to use? (config_rate/external_market/custom_api) >>> ",
+                  prompt="Which base price source to use? (config_rate/external_market/custom_api) >>> ",
+                  prompt_on_new=True,
                   type_str="str",
                   default="config_rate",
                   validator=validate_price_source,
                   on_validated=on_validate_base_price_source),
     "quote_price_source":
         ConfigVar(key="quote_price_source",
-                  prompt="Which price source to use? (config_rate/external_market/custom_api) >>> ",
+                  prompt="Which quote price source to use? (config_rate/external_market/custom_api) >>> ",
+                  prompt_on_new=True,
                   type_str="str",
                   default="config_rate",
                   validator=validate_price_source,
@@ -152,6 +154,7 @@ arbitrage_config_map = {
         prompt="Enter conversion rate for secondary base asset value to primary base asset value, e.g. "
                "if primary base asset is USD, secondary is DAI and 1 USD is worth 1.25 DAI, "
                "the conversion rate is 0.8 (1 / 1.25) >>> ",
+        prompt_on_new=True,
         required_if=lambda: arbitrage_config_map.get("base_price_source").value == "config_rate",
         default=Decimal("1"),
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal("100"), inclusive=False),
@@ -161,13 +164,15 @@ arbitrage_config_map = {
         prompt="Enter conversion rate for secondary quote asset value to primary quote asset value, e.g. "
                "if primary quote asset is USD, secondary is DAI and 1 USD is worth 1.25 DAI, "
                "the conversion rate is 0.8 (1 / 1.25) >>> ",
+        prompt_on_new=True,
         required_if=lambda: arbitrage_config_map.get("quote_price_source").value == "config_rate",
         default=Decimal("1"),
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal("100"), inclusive=False),
         type_str="decimal"),
     "base_price_source_exchange":
         ConfigVar(key="base_price_source_exchange",
-                  prompt="Enter external price source exchange name >>> ",
+                  prompt="Enter external base price source exchange name >>> ",
+                  prompt_on_new=True,
                   required_if=lambda: arbitrage_config_map.get("base_price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_exchange,
@@ -175,17 +180,19 @@ arbitrage_config_map = {
     "base_price_source_market":
         ConfigVar(key="base_price_source_market",
                   prompt=base_price_source_market_prompt,
+                  prompt_on_new=True,
                   required_if=lambda: arbitrage_config_map.get("base_price_source").value == "external_market",
                   type_str="str",
                   validator=validate_base_price_source_market),
     "base_price_source_custom_api":
         ConfigVar(key="base_price_source_custom_api",
-                  prompt="Enter pricing API URL >>> ",
+                  prompt="Enter base pricing API URL >>> ",
+                  prompt_on_new=True,
                   required_if=lambda: arbitrage_config_map.get("base_price_source").value == "custom_api",
                   type_str="str"),
     "base_price_source_type":
         ConfigVar(key="base_price_source_type",
-                  prompt="Which price type to use? (mid_price/last_price/last_own_trade_price/best_bid/best_ask) >>> ",
+                  prompt="Which base price type to use? (mid_price/last_price/best_bid/best_ask) >>> ",
                   type_str="str",
                   required_if=lambda: arbitrage_config_map.get("base_price_source").value != "custom_api",
                   default="mid_price",
@@ -196,7 +203,8 @@ arbitrage_config_map = {
                   "Invalid price type."),
     "quote_price_source_exchange":
         ConfigVar(key="quote_price_source_exchange",
-                  prompt="Enter external price source exchange name >>> ",
+                  prompt="Enter quote external price source exchange name >>> ",
+                  prompt_on_new=True,
                   required_if=lambda: arbitrage_config_map.get("quote_price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_exchange,
@@ -204,17 +212,19 @@ arbitrage_config_map = {
     "quote_price_source_market":
         ConfigVar(key="quote_price_source_market",
                   prompt=quote_price_source_market_prompt,
+                  prompt_on_new=True,
                   required_if=lambda: arbitrage_config_map.get("quote_price_source").value == "external_market",
                   type_str="str",
                   validator=validate_quote_price_source_market),
     "quote_price_source_custom_api":
         ConfigVar(key="quote_price_source_custom_api",
-                  prompt="Enter pricing API URL >>> ",
+                  prompt="Enter quote pricing API URL >>> ",
+                  prompt_on_new=True,
                   required_if=lambda: arbitrage_config_map.get("quote_price_source").value == "custom_api",
                   type_str="str"),
     "quote_price_source_type":
         ConfigVar(key="quote_price_source_type",
-                  prompt="Which price type to use? (mid_price/last_price/last_own_trade_price/best_bid/best_ask) >>> ",
+                  prompt="Which quote price type to use? (mid_price/last_price/best_bid/best_ask) >>> ",
                   type_str="str",
                   required_if=lambda: arbitrage_config_map.get("quote_price_source").value != "custom_api",
                   default="mid_price",
