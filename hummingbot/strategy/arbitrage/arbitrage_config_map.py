@@ -46,6 +46,12 @@ def validate_price_source(value: str) -> Optional[str]:
 
 
 def validate_price_source_exchange(value: str) -> Optional[str]:
+    ActiveExchanges = [
+        arbitrage_config_map.get("primary_market").value,
+        arbitrage_config_map.get("secondary_market").value,
+    ]
+    if value in ActiveExchanges:
+        return "Price source exchange cannot be the same as one of the active exchanges."
     return validate_exchange(value)
 
 
