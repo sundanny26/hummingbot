@@ -25,6 +25,14 @@ def start(self):
     secondary_to_primary_quote_conversion_rate = arbitrage_config_map["secondary_to_primary_quote_conversion_rate"].value
     base_price_source_type = arbitrage_config_map.get("base_price_source_type").value
     quote_price_source_type = arbitrage_config_map.get("quote_price_source_type").value
+    base_price_source = arbitrage_config_map.get("base_price_source").value
+    quote_price_source = arbitrage_config_map.get("quote_price_source").value
+    base_price_source_market = arbitrage_config_map.get("base_price_source_market").value
+    quote_price_source_market = arbitrage_config_map.get("quote_price_source_market").value
+    base_price_source_exchange = arbitrage_config_map.get("base_price_source_exchange").value
+    quote_price_source_exchange = arbitrage_config_map.get("quote_price_source_exchange").value
+    base_price_source_custom_api = arbitrage_config_map.get("base_price_source_custom_api").value
+    quote_price_source_custom_api = arbitrage_config_map.get("quote_price_source_custom_api").value
 
     try:
         primary_trading_pair: str = raw_primary_trading_pair
@@ -46,33 +54,39 @@ def start(self):
     secondary_data = [self.markets[secondary_market], secondary_trading_pair] + list(secondary_assets)
     self.market_trading_pair_tuples = [MarketTradingPairTuple(*primary_data), MarketTradingPairTuple(*secondary_data)]
     self.market_pair = ArbitrageMarketPair(*self.market_trading_pair_tuples)
-    base_asset_price_delegate, quote_asset_price_delegate = None, None
+    asset_price_delegates = {'base': None, 'quote': None}
+    shared_ext_mkt = None
     for asset_type in ['base', 'quote']:
-        price_source = arbitrage_config_map.get(f"{asset_type}_price_source").value
-        price_source_market = arbitrage_config_map.get(f"{asset_type}_price_source_market").value
-        price_source_exchange = arbitrage_config_map.get(f"{asset_type}_price_source_exchange").value
-        price_source_custom_api = arbitrage_config_map.get(f"{asset_type}_price_source_custom_api").value
+        if asset_type == 'quote':
+            price_source, price_source_market = quote_price_source, quote_price_source_market
+            price_source_exchange, price_source_custom_api = quote_price_source_exchange, quote_price_source_custom_api
+        else:
+            price_source, price_source_market = base_price_source, base_price_source_market
+            price_source_exchange, price_source_custom_api = base_price_source_exchange, base_price_source_custom_api
         if price_source == "external_market":
             asset_trading_pair: str = price_source_market
-            ext_market = create_paper_trade_market(price_source_exchange, [asset_trading_pair])
+            base_quote_exch_match = (quote_price_source == base_price_source and
+                                     quote_price_source_exchange == base_price_source_exchange)
+            if base_quote_exch_match:
+                if asset_type == 'base':
+                    base_quote_trading_pairs = [asset_trading_pair, quote_price_source_market]
+                    shared_ext_mkt = ext_market = create_paper_trade_market(price_source_exchange, base_quote_trading_pairs)
+                else:
+                    ext_market = shared_ext_mkt
+            else:
+                ext_market = create_paper_trade_market(price_source_exchange, [asset_trading_pair])
             if price_source_exchange not in list(self.markets.keys()):
                 self.markets[price_source_exchange]: ExchangeBase = ext_market
-            if asset_type == "base":
-                base_asset_price_delegate = OrderBookAssetPriceDelegate(ext_market, asset_trading_pair)
-            elif asset_type == "quote":
-                quote_asset_price_delegate = OrderBookAssetPriceDelegate(ext_market, asset_trading_pair)
+            asset_price_delegates[asset_type] = OrderBookAssetPriceDelegate(ext_market, asset_trading_pair)
         elif price_source == "custom_api":
-            if asset_type == "base":
-                base_asset_price_delegate = APIAssetPriceDelegate(price_source_custom_api)
-            elif asset_type == "quote":
-                quote_asset_price_delegate = APIAssetPriceDelegate(price_source_custom_api)
+            asset_price_delegates[asset_type] = APIAssetPriceDelegate(price_source_custom_api)
     self.strategy = ArbitrageStrategy(market_pairs=[self.market_pair],
                                       min_profitability=min_profitability,
                                       logging_options=ArbitrageStrategy.OPTION_LOG_ALL,
                                       secondary_to_primary_base_conversion_rate=secondary_to_primary_base_conversion_rate,
                                       secondary_to_primary_quote_conversion_rate=secondary_to_primary_quote_conversion_rate,
-                                      base_asset_price_delegate=base_asset_price_delegate,
-                                      quote_asset_price_delegate=quote_asset_price_delegate,
+                                      base_asset_price_delegate=asset_price_delegates['base'],
+                                      quote_asset_price_delegate=asset_price_delegates['quote'],
                                       base_price_source_type=base_price_source_type,
                                       quote_price_source_type=quote_price_source_type,
                                       hb_app_notification=True)
