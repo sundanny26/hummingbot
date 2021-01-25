@@ -1,6 +1,7 @@
 # distutils: language=c++
 import logging
 from decimal import Decimal
+import numpy as np
 import pandas as pd
 from typing import (
     List,
@@ -12,6 +13,7 @@ from hummingbot.connector.exchange_base cimport ExchangeBase
 from hummingbot.core.event.events import (
     TradeType,
     OrderType,
+    PriceType
 )
 from hummingbot.core.data_type.limit_order import LimitOrder
 from hummingbot.core.data_type.market_order import MarketOrder
@@ -20,6 +22,9 @@ from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.strategy.strategy_base import StrategyBase
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.arbitrage.arbitrage_market_pair import ArbitrageMarketPair
+from .asset_price_delegate cimport AssetPriceDelegate
+from .asset_price_delegate import AssetPriceDelegate
+from .order_book_asset_price_delegate cimport OrderBookAssetPriceDelegate
 
 NaN = float("nan")
 s_decimal_0 = Decimal(0)
@@ -51,6 +56,10 @@ cdef class ArbitrageStrategy(StrategyBase):
                  failed_order_tolerance: int = 1,
                  secondary_to_primary_base_conversion_rate: Decimal = Decimal("1"),
                  secondary_to_primary_quote_conversion_rate: Decimal = Decimal("1"),
+                 base_asset_price_delegate: AssetPriceDelegate = None,
+                 quote_asset_price_delegate: AssetPriceDelegate = None,
+                 base_price_source_type: str = "mid_price",
+                 quote_price_source_type: str = "mid_price",
                  hb_app_notification: bool = False):
         """
         :param market_pairs: list of arbitrage market pairs
@@ -79,6 +88,11 @@ cdef class ArbitrageStrategy(StrategyBase):
         self._secondary_to_primary_base_conversion_rate = secondary_to_primary_base_conversion_rate
         self._secondary_to_primary_quote_conversion_rate = secondary_to_primary_quote_conversion_rate
 
+        self._base_asset_price_delegate = base_asset_price_delegate
+        self._quote_asset_price_delegate = quote_asset_price_delegate
+        self._base_price_source_type = self.get_price_type(base_price_source_type)
+        self._quote_price_source_type = self.get_price_type(quote_price_source_type)
+
         self._hb_app_notification = hb_app_notification
 
         cdef:
@@ -105,6 +119,97 @@ cdef class ArbitrageStrategy(StrategyBase):
     @property
     def tracked_market_orders_data_frame(self) -> List[pd.DataFrame]:
         return self._sb_order_tracker.tracked_market_orders_data_frame
+
+    @property
+    def base_asset_price_delegate(self) -> AssetPriceDelegate:
+        return self._base_asset_price_delegate
+
+    @base_asset_price_delegate.setter
+    def base_asset_price_delegate(self, value):
+        self._base_asset_price_delegate = value
+
+    @property
+    def quote_asset_price_delegate(self) -> AssetPriceDelegate:
+        return self._quote_asset_price_delegate
+
+    @quote_asset_price_delegate.setter
+    def quote_asset_price_delegate(self, value):
+        self._quote_asset_price_delegate = value
+
+    def get_base_price(self) -> float:
+        if self._base_asset_price_delegate is not None:
+            price_provider = self._base_asset_price_delegate
+        else:
+            return self._secondary_to_primary_base_conversion_rate
+        price = price_provider.get_price_by_type(self._base_price_source_type)
+        if price.is_nan():
+            price = price_provider.get_price_by_type(PriceType.MidPrice)
+        return price
+
+    def get_base_mid_price(self) -> float:
+        return self.c_get_base_mid_price()
+
+    cdef object c_get_base_mid_price(self):
+        cdef:
+            AssetPriceDelegate delegate = self._base_asset_price_delegate
+            object mid_price
+        if self._base_asset_price_delegate is not None:
+            mid_price = delegate.c_get_base_mid_price()
+        else:
+            mid_price = self._market_info.get_base_mid_price()
+        return mid_price
+
+    def get_quote_price(self) -> float:
+        if self._quote_asset_price_delegate is not None:
+            price_provider = self._quote_asset_price_delegate
+        else:
+            return self._secondary_to_primary_quote_conversion_rate
+        price = price_provider.get_price_by_type(self._quote_price_source_type)
+        if price.is_nan():
+            price = price_provider.get_price_by_type(PriceType.MidPrice)
+        return price
+
+    def get_quote_mid_price(self) -> float:
+        return self.c_get_quote_mid_price()
+
+    cdef object c_get_quote_mid_price(self):
+        cdef:
+            AssetPriceDelegate delegate = self._quote_asset_price_delegate
+            object mid_price
+        if self._quote_asset_price_delegate is not None:
+            mid_price = delegate.c_get_quote_mid_price()
+        else:
+            mid_price = self._market_info.get_quote_mid_price()
+        return mid_price
+
+    def market_status_data_frame(self, market_trading_pair_tuples: List[MarketTradingPairTuple]) -> pd.DataFrame:
+        markets_data = []
+        markets_columns = ["Exchange", "Market", "Best Bid Price", "Best Ask Price", "Mid Price"]
+        if self._base_asset_price_delegate is not None:
+            base_tuple = MarketTradingPairTuple(self._base_asset_price_delegate.market,
+                                                self._base_asset_price_delegate.trading_pair,
+                                                None,
+                                                None)
+            market_trading_pair_tuples.append(base_tuple)
+        if self._quote_asset_price_delegate is not None:
+            quote_tuple = MarketTradingPairTuple(self._quote_asset_price_delegate.market,
+                                                 self._quote_asset_price_delegate.trading_pair,
+                                                 None,
+                                                 None)
+            market_trading_pair_tuples.append(quote_tuple)
+        for market_trading_pair_tuple in market_trading_pair_tuples:
+            market, trading_pair, base_asset, quote_asset = market_trading_pair_tuple
+            bid_price = market.get_price(trading_pair, False)
+            ask_price = market.get_price(trading_pair, True)
+            mid_price = (bid_price + ask_price)/2
+            markets_data.append([
+                market.display_name,
+                trading_pair,
+                float(bid_price),
+                float(ask_price),
+                float(mid_price)
+            ])
+        return pd.DataFrame(data=markets_data, columns=markets_columns)
 
     def format_status(self) -> str:
         cdef:
@@ -172,6 +277,10 @@ cdef class ArbitrageStrategy(StrategyBase):
         try:
             if not self._all_markets_ready:
                 self._all_markets_ready = all([market.ready for market in self._sb_markets])
+                if self._base_asset_price_delegate is not None and self._all_markets_ready:
+                    self._all_markets_ready = self._base_asset_price_delegate.ready
+                if self._quote_asset_price_delegate is not None and self._all_markets_ready:
+                    self._all_markets_ready = self._quote_asset_price_delegate.ready
                 if not self._all_markets_ready:
                     # Markets not ready yet. Don't do anything.
                     if should_report_warnings:
@@ -384,7 +493,9 @@ cdef class ArbitrageStrategy(StrategyBase):
         if market_info == self._market_pairs[0].first:
             return Decimal("1")
         elif market_info == self._market_pairs[0].second:
-            return self._secondary_to_primary_quote_conversion_rate / self._secondary_to_primary_base_conversion_rate
+            base_conversion_rate = self.get_base_price()
+            quote_conversion_rate = self.get_quote_price()
+            return quote_conversion_rate / base_conversion_rate
 
     cdef tuple c_find_best_profitable_amount(self, object buy_market_trading_pair_tuple, object sell_market_trading_pair_tuple):
         """
@@ -514,6 +625,18 @@ cdef class ArbitrageStrategy(StrategyBase):
             )
 
         return best_profitable_order_amount, best_profitable_order_profitability, bid_price, ask_price
+
+    def get_price_type(self, price_type_str: str) -> PriceType:
+        if price_type_str == "mid_price":
+            return PriceType.MidPrice
+        elif price_type_str == "best_bid":
+            return PriceType.BestBid
+        elif price_type_str == "best_ask":
+            return PriceType.BestAsk
+        elif price_type_str == "last_price":
+            return PriceType.LastTrade
+        else:
+            raise ValueError(f"Unrecognized price type string {price_type_str}.")
 
     # The following exposed Python functions are meant for unit tests
     # ---------------------------------------------------------------
