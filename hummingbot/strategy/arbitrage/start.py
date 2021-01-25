@@ -9,6 +9,7 @@ from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.arbitrage.arbitrage_market_pair import ArbitrageMarketPair
 from hummingbot.strategy.arbitrage import (
     ArbitrageStrategy,
+    AssetPriceDelegate,
     OrderBookAssetPriceDelegate,
     APIAssetPriceDelegate
 )
@@ -54,39 +55,39 @@ def start(self):
     secondary_data = [self.markets[secondary_market], secondary_trading_pair] + list(secondary_assets)
     self.market_trading_pair_tuples = [MarketTradingPairTuple(*primary_data), MarketTradingPairTuple(*secondary_data)]
     self.market_pair = ArbitrageMarketPair(*self.market_trading_pair_tuples)
-    asset_price_delegates = {'base': None, 'quote': None}
+
+    # Asset Price Feed Delegates
     shared_ext_mkt = None
+    price_delegates = {'base': None, 'quote': None}
+    # Use shared paper trade market if both price feeds are on the same exchange.
+    if quote_price_source == base_price_source and quote_price_source_exchange == base_price_source_exchange:
+        shared_ext_mkt = create_paper_trade_market(base_price_source_exchange,
+                                                   [base_price_source_market, quote_price_source_market])
+    # Initialize price delegates as needed for defined price sources.
     for asset_type in ['base', 'quote']:
-        if asset_type == 'quote':
-            price_source, price_source_market = quote_price_source, quote_price_source_market
-            price_source_exchange, price_source_custom_api = quote_price_source_exchange, quote_price_source_custom_api
-        else:
-            price_source, price_source_market = base_price_source, base_price_source_market
-            price_source_exchange, price_source_custom_api = base_price_source_exchange, base_price_source_custom_api
+        price_source: str = locals()[f"{asset_type}_price_source"]
         if price_source == "external_market":
-            asset_trading_pair: str = price_source_market
-            base_quote_exch_match = (quote_price_source == base_price_source and
-                                     quote_price_source_exchange == base_price_source_exchange)
-            if base_quote_exch_match:
-                if asset_type == 'base':
-                    base_quote_trading_pairs = [asset_trading_pair, quote_price_source_market]
-                    shared_ext_mkt = ext_market = create_paper_trade_market(price_source_exchange, base_quote_trading_pairs)
-                else:
-                    ext_market = shared_ext_mkt
-            else:
-                ext_market = create_paper_trade_market(price_source_exchange, [asset_trading_pair])
-            if price_source_exchange not in list(self.markets.keys()):
-                self.markets[price_source_exchange]: ExchangeBase = ext_market
-            asset_price_delegates[asset_type] = OrderBookAssetPriceDelegate(ext_market, asset_trading_pair)
+            # For price feeds using other connectors
+            ext_exchange: str = locals()[f"{asset_type}_price_source_exchange"]
+            asset_pair: str = locals()[f"{asset_type}_price_source_market"]
+            # Make separate paper trade markets if not shared.
+            ext_market = create_paper_trade_market(ext_exchange, [asset_pair]) if shared_ext_mkt is None else shared_ext_mkt
+            # Add paper trade market to markets if not conflicting - this is blocked by the Config helper.
+            if ext_exchange not in list(self.markets.keys()):
+                self.markets[ext_exchange]: ExchangeBase = ext_market
+            price_delegates[asset_type]: AssetPriceDelegate = OrderBookAssetPriceDelegate(ext_market, asset_pair)
         elif price_source == "custom_api":
-            asset_price_delegates[asset_type] = APIAssetPriceDelegate(price_source_custom_api)
+            # For price feeds using custom APIs
+            custom_api: str = locals()[f"{asset_type}_price_source_custom_api"]
+            price_delegates[asset_type]: AssetPriceDelegate = APIAssetPriceDelegate(custom_api)
+
     self.strategy = ArbitrageStrategy(market_pairs=[self.market_pair],
                                       min_profitability=min_profitability,
                                       logging_options=ArbitrageStrategy.OPTION_LOG_ALL,
                                       secondary_to_primary_base_conversion_rate=secondary_to_primary_base_conversion_rate,
                                       secondary_to_primary_quote_conversion_rate=secondary_to_primary_quote_conversion_rate,
-                                      base_asset_price_delegate=asset_price_delegates['base'],
-                                      quote_asset_price_delegate=asset_price_delegates['quote'],
+                                      base_asset_price_delegate=price_delegates['base'],
+                                      quote_asset_price_delegate=price_delegates['quote'],
                                       base_price_source_type=base_price_source_type,
                                       quote_price_source_type=quote_price_source_type,
                                       hb_app_notification=True)
