@@ -338,7 +338,7 @@ profit_market_making_config_map = {
                   prompt="How many hours do you want the profit tracking window to be? >>> ",
                   required_if=lambda: profit_market_making_config_map.get("track_tradehistory_enabled").value is True,
                   type_str="decimal",
-                  validator=lambda v: validate_decimal(v, 0, 10000, True),
+                  validator=lambda v: validate_decimal(v, -1, 10000, True),
                   default=Decimal(4)),
     "track_tradehistory_allowed_loss":
         ConfigVar(key="track_tradehistory_allowed_loss",

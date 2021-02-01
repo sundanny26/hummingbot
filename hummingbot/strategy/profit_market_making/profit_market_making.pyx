@@ -14,11 +14,13 @@ from math import (
 import time
 from hummingbot.core.clock cimport Clock
 from hummingbot.core.event.events import TradeType, PriceType
+from hummingbot.core.data_type.trade import Trade
 from hummingbot.core.data_type.limit_order cimport LimitOrder
 from hummingbot.core.data_type.limit_order import LimitOrder
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.connector.exchange_base import ExchangeBase
 from hummingbot.connector.exchange_base cimport ExchangeBase
+from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.event.events import OrderType
 
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
@@ -409,6 +411,45 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
     def active_non_hanging_orders(self) -> List[LimitOrder]:
         orders = [o for o in self.active_orders if o.client_order_id not in self._hanging_order_ids]
         return orders
+
+    @property
+    def track_tradehistory_hours(self) -> Decimal:
+        return self._track_tradehistory_hours
+
+    @track_tradehistory_hours.setter
+    def track_tradehistory_hours(self, value: Decimal):
+        self._track_tradehistory_hours = value
+
+    @property
+    def track_tradehistory_allowed_loss(self) -> Decimal:
+        return self._track_tradehistory_allowed_loss
+
+    @track_tradehistory_allowed_loss.setter
+    def track_tradehistory_allowed_loss(self, value: Decimal):
+        self._track_tradehistory_allowed_loss = value
+
+    @property
+    def track_tradehistory_profit_wanted(self) -> Decimal:
+        return self._track_tradehistory_profit_wanted
+
+    @track_tradehistory_profit_wanted.setter
+    def track_tradehistory_profit_wanted(self, value: Decimal):
+        self._track_tradehistory_profit_wanted = value
+
+    @property
+    def markets_recorder(self) -> MarketsRecorder:
+        from hummingbot.client.hummingbot_application import HummingbotApplication
+        return HummingbotApplication.main_application().markets_recorder
+
+    @property
+    def strategy_file_name(self) -> str:
+        from hummingbot.client.hummingbot_application import HummingbotApplication
+        return HummingbotApplication.main_application().strategy_file_name
+
+    @property
+    def trades_history(self) -> List[LimitOrder]:
+        return self.markets_recorder.get_trades_for_config(self.strategy_file_name,
+                                                           2000)
 
     @property
     def logging_options(self) -> int:
@@ -863,41 +904,37 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
             ExchangeBase market = self._market_info.market
             object lowest_sell_price = s_decimal_zero
             object highest_buy_price = s_decimal_zero
-            int time_window = self._track_tradehistory_hours
-            object allowed_loss = self._track_tradehistory_allowed_loss
-            object profit_perc = self._track_tradehistory_profit_wanted
+            int accept_time = int(time.time() - int((self.track_tradehistory_hours * (60 * 60))))
+            object sell_margin = Decimal('1') - self.track_tradehistory_allowed_loss
+            object buy_margin = self.track_tradehistory_allowed_loss + Decimal('1')
+            object sell_profit = self.track_tradehistory_profit_wanted + Decimal('1')
+            object buy_profit = Decimal('1') - self.track_tradehistory_profit_wanted
+            object profit_perc = self.track_tradehistory_profit_wanted
+            list trades = self.trades
+            list trades_history = self.trades_history
 
-        trades = self.trades
-        if len(trades) > 0:
-            for trade in trades:
-                if trade.timestamp > int(time.time() - (time_window * (60 * 60))):
-                    if trade.side == TradeType.SELL:
-                        if (lowest_sell_price == s_decimal_zero or trade.price < lowest_sell_price):
-                            lowest_sell_price = trade.price
-                    if trade.side == TradeType.BUY:
-                        if (highest_buy_price == s_decimal_zero or trade.price > highest_buy_price):
-                            highest_buy_price = trade.price
+        all_trades = trades + trades_history if len(trades) < 100 else trades
+        for trade in all_trades:
+            trade_ts = int(trade.timestamp) if type(trade) == Trade else int(trade.timestamp / 1000)
+            trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
+            trade_price = Decimal(str(trade.price))
+            if trade_ts > accept_time:
+                if trade_side == TradeType.SELL.name and \
+                        (lowest_sell_price == s_decimal_zero or trade_price < lowest_sell_price):
+                    lowest_sell_price = trade_price
+                if trade_side == TradeType.BUY.name and \
+                        (highest_buy_price == s_decimal_zero or trade_price > highest_buy_price):
+                    highest_buy_price = trade_price
 
-        # print(f"Lowest Sell: {lowest_sell_price}, Highest Buy: {highest_buy_price}")
-        sell_margin = Decimal((100 - Decimal(allowed_loss)) / 100)
-        buy_margin = Decimal(Decimal('1') - sell_margin) + Decimal('1')
-        buy_profit = Decimal((100 - Decimal(profit_perc)) / 100)
-        sell_profit = Decimal(Decimal('1') - buy_profit) + Decimal('1')
-        max_buy_price = (Decimal(lowest_sell_price * buy_margin)
-                         if lowest_sell_price != s_decimal_zero
+        max_buy_price = (Decimal(lowest_sell_price * buy_margin) if lowest_sell_price != s_decimal_zero
                          else s_decimal_zero)
-        min_sell_price = (Decimal(highest_buy_price * sell_margin)
-                          if highest_buy_price != s_decimal_zero
+        min_sell_price = (Decimal(highest_buy_price * sell_margin) if highest_buy_price != s_decimal_zero
                           else s_decimal_zero)
 
-        # print(f"Max Buy: {max_buy_price}, Min Sell: {min_sell_price}")
         for buy in proposal.buys:
             if buy.price > max_buy_price and max_buy_price != s_decimal_zero:
-                # print(f"Dropping buy because above max buy price: {buy.price}")
-                # buy.size = s_decimal_zero
-                # print(f"Buy Previous size: {buy.size}, price: {buy.price}")
                 quote_amount = Decimal(buy.size * buy.price)
-                buy.price = Decimal(max_buy_price * buy_profit)
+                buy.price = Decimal((max_buy_price - (buy.price - max_buy_price)) * buy_profit)
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
@@ -906,10 +943,7 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
 
         for sell in proposal.sells:
             if sell.price < min_sell_price and min_sell_price != s_decimal_zero:
-                # print(f"Dropping sell because below min sell price: {sell.price}")
-                # sell.size = s_decimal_zero
-                # print(f"Sell Previous size: {sell.size}, price: {sell.price}")
-                sell.price = Decimal(min_sell_price * sell_profit)
+                sell.price = Decimal((min_sell_price + (min_sell_price - sell.price)) * sell_profit)
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
 

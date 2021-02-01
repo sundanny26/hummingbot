@@ -69,8 +69,8 @@ def start(self):
         take_if_crossed = c_map.get("take_if_crossed").value
         track_tradehistory_enabled = c_map.get("track_tradehistory_enabled").value
         track_tradehistory_hours = c_map.get("track_tradehistory_hours").value
-        track_tradehistory_allowed_loss = c_map.get("track_tradehistory_allowed_loss").value
-        track_tradehistory_profit_wanted = c_map.get("track_tradehistory_profit_wanted").value
+        track_tradehistory_allowed_loss = c_map.get("track_tradehistory_allowed_loss").value / Decimal('100')
+        track_tradehistory_profit_wanted = c_map.get("track_tradehistory_profit_wanted").value / Decimal('100')
 
         strategy_logging_options = ProfitMarketMakingStrategy.OPTION_LOG_ALL
 

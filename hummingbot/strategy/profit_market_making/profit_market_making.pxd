@@ -34,7 +34,7 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
         object _price_type
         bint _take_if_crossed
         bint _track_tradehistory_enabled
-        int _track_tradehistory_hours
+        object _track_tradehistory_hours
         object _track_tradehistory_allowed_loss
         object _track_tradehistory_profit_wanted
         object _price_ceiling
