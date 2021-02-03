@@ -932,12 +932,12 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
         cdef:
             ExchangeBase market = self._market_info.market
             int accept_time = int(time.time() - int((self.track_tradehistory_hours * (60 * 60))))
+            object buy_pr_thresh = s_decimal_zero
             object highest_buy_price = s_decimal_zero
             object lowest_buy_price = s_decimal_zero
+            object sell_pr_thresh = s_decimal_zero
             object highest_sell_price = s_decimal_zero
             object lowest_sell_price = s_decimal_zero
-            object max_buy_price = s_decimal_zero
-            object min_sell_price = s_decimal_zero
             object buy_margin = self.track_tradehistory_allowed_loss + Decimal('1')
             object buy_margin_on_self = self.track_tradehistory_ownside_allowedloss + Decimal('1')
             object buy_profit = Decimal('1') - self.track_tradehistory_profit_wanted
@@ -965,22 +965,22 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
                         highest_buy_price = trade_price
 
         if lowest_sell_price != s_decimal_zero:
-            max_buy_price = Decimal(lowest_sell_price * buy_margin)
+            buy_pr_thresh = Decimal(lowest_sell_price * buy_margin)
         if highest_buy_price != s_decimal_zero:
-            min_sell_price = Decimal(highest_buy_price * sell_margin)
+            sell_pr_thresh = Decimal(highest_buy_price * sell_margin)
 
         if self.track_tradehistory_ownside_enabled:
             if lowest_buy_price != s_decimal_zero and (lowest_sell_price == s_decimal_zero or
-                                                       lowest_buy_price < lowest_sell_price):
-                max_buy_price = Decimal(lowest_buy_price * buy_margin_on_self)
+                                                       (lowest_buy_price * buy_margin_on_self) < buy_pr_thresh):
+                buy_pr_thresh = Decimal(lowest_buy_price * buy_margin_on_self)
             if highest_sell_price != s_decimal_zero and (highest_buy_price == s_decimal_zero or
-                                                         highest_sell_price > highest_buy_price):
-                min_sell_price = Decimal(highest_sell_price * sell_margin_on_self)
+                                                         (highest_sell_price * sell_margin_on_self) > sell_pr_thresh):
+                sell_pr_thresh = Decimal(highest_sell_price * sell_margin_on_self)
 
         for buy in proposal.buys:
-            if buy.price > max_buy_price and max_buy_price != s_decimal_zero:
+            if buy.price > buy_pr_thresh and buy_pr_thresh != s_decimal_zero:
                 quote_amount = Decimal(buy.size * buy.price)
-                buy.price = Decimal((max_buy_price - (buy.price - max_buy_price)) * buy_profit)
+                buy.price = Decimal((buy_pr_thresh - (buy.price - buy_pr_thresh)) * buy_profit)
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
@@ -988,8 +988,8 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
         for sell in proposal.sells:
-            if sell.price < min_sell_price and min_sell_price != s_decimal_zero:
-                sell.price = Decimal((min_sell_price + (min_sell_price - sell.price)) * sell_profit)
+            if sell.price < sell_pr_thresh and sell_pr_thresh != s_decimal_zero:
+                sell.price = Decimal((sell_pr_thresh + (sell_pr_thresh - sell.price)) * sell_profit)
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
     # TRADE TRACKER
