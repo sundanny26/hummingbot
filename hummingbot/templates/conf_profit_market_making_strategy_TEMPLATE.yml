@@ -2,7 +2,7 @@
 ###      Profit market making strategy config        ###
 ########################################################
 
-template_version: 20
+template_version: 21
 strategy: null
 
 # Exchange and token parameters.
@@ -114,6 +114,8 @@ track_tradehistory_enabled: null
 track_tradehistory_hours: null
 track_tradehistory_allowed_loss: null
 track_tradehistory_profit_wanted: null
+track_tradehistory_ownside_enabled: null
+track_tradehistory_ownside_allowedloss: null
 
 # Use user provided orders to directly override the orders placed by order_amount and order_level_parameter
 # This is an advanced feature and user is expected to directly edit this field in config file

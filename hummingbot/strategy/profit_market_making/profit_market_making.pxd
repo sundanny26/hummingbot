@@ -37,6 +37,8 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
         object _track_tradehistory_hours
         object _track_tradehistory_allowed_loss
         object _track_tradehistory_profit_wanted
+        bint _track_tradehistory_ownside_enabled
+        object _track_tradehistory_ownside_allowedloss
         object _price_ceiling
         object _price_floor
         bint _ping_pong_enabled

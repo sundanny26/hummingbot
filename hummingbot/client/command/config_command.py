@@ -35,9 +35,11 @@ if TYPE_CHECKING:
 
 
 no_restart_pmm_keys_in_percentage = ["bid_spread", "ask_spread", "order_level_spread", "inventory_target_base_pct"]
-no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + ["track_tradehistory_allowed_loss", "track_tradehistory_profit_wanted"]
+pmm_k_append_perc = ["track_tradehistory_allowed_loss", "track_tradehistory_profit_wanted", "track_tradehistory_ownside_allowedloss"]
+no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + pmm_k_append_perc
 no_restart_pmm_keys = ["order_amount", "order_levels", "filled_order_delay", "inventory_skew_enabled", "inventory_range_multiplier"]
-no_restart_pmm_keys = no_restart_pmm_keys + ["track_tradehistory_hours"]
+pmm_k_append = ["track_tradehistory_enabled", "track_tradehistory_hours", "track_tradehistory_ownside_enabled"]
+no_restart_pmm_keys = no_restart_pmm_keys + pmm_k_append
 global_configs_to_display = ["0x_active_cancels",
                              "kill_switch_enabled",
                              "kill_switch_rate",
