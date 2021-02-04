@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 connector_status = {
+    'altmarkets': 'green',
     'binance': 'green',
     'binance_perpetual': 'yellow',
     'binance_perpetual_testnet': 'yellow',

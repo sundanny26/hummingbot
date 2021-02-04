@@ -43,6 +43,7 @@ OKEx is reportedly being investigated by Chinese authorities and has stopped wit
 | <img src="assets/bitfinex_logo.png" alt="Bitfinex" width="90" /> | bitfinex | [Bitfinex](https://www.bitfinex.com/) | 2 | [API](https://docs.bitfinex.com/docs/introduction) | ![GREEN](https://via.placeholder.com/15/008000/?text=+)  |
 | <img src="assets/okex_logo.png" alt="OKEx" width="90" /> | okex | [OKEx](https://www.okex.com/) | 2 | [API](https://www.okex.com/docs/en/) | ![RED](https://via.placeholder.com/15/f03c15/?text=+) |
 | <img src="assets/dydx_logo.png" alt="DyDx" width="90" /> | dy/dx | [dy/dx](https://dydx.exchange/) | 1 | [API](https://docs.dydx.exchange/) | ![YELLOW](https://via.placeholder.com/15/ffff00/?text=+) |
+| <img src="assets/altmarkets_logo1.png" alt="AltMarkets.io" width="90" /> | altmarkets | [AltMarkets.io](https://altmarkets.io/) | 2 | [API](https://altmarkets.io/) | ![GREEN](https://via.placeholder.com/15/008000/?text=+) | Connector is working properly
 
 
 ## Supported decentralized exchanges
