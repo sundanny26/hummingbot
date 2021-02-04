@@ -980,7 +980,7 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
         for buy in proposal.buys:
             if buy.price > buy_pr_thresh and buy_pr_thresh != s_decimal_zero:
                 quote_amount = Decimal(buy.size * buy.price)
-                buy.price = Decimal((buy_pr_thresh - (buy.price - buy_pr_thresh)) * buy_profit)
+                buy.price = Decimal((buy_pr_thresh - (self.get_price() - buy.price)) * buy_profit)
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
@@ -989,7 +989,7 @@ cdef class ProfitMarketMakingStrategy(StrategyBase):
 
         for sell in proposal.sells:
             if sell.price < sell_pr_thresh and sell_pr_thresh != s_decimal_zero:
-                sell.price = Decimal((sell_pr_thresh + (sell_pr_thresh - sell.price)) * sell_profit)
+                sell.price = Decimal((sell_pr_thresh + (sell.price - self.get_price())) * sell_profit)
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
     # TRADE TRACKER
